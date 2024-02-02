@@ -38,8 +38,11 @@
         let missingSKUs = []; // Array to store SKUs missing in Shopify
 
         function processFiles() {
-            const shopifyFileInput = document.getElementById('shopifyFile');
-            const takealotFileInputs = document.getElementById('takealotFiles');
+            errorData = []; // Reset error data
+    missingSKUs = []; // Reset missing SKUs
+
+    const shopifyFileInput = document.getElementById('shopifyFile');
+    const takealotFileInputs = document.getElementById('takealotFiles');
 
             if (shopifyFileInput.files.length > 0) {
                 const reader = new FileReader();
