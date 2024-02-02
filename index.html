@@ -20,12 +20,12 @@
 <body>
     <h1>Inventory Management Tool</h1>
     <label for="shopifyFile" class="custom-file-upload">
-        Shopify Inventory Export file
+        Choose Shopify File
     </label>
     <input type="file" id="shopifyFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
     
     <label for="takealotFiles" class="custom-file-upload">
-        Choose Picking List/s
+        Choose Picking Lists
     </label>
     <input type="file" id="takealotFiles" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden">
     
@@ -84,13 +84,14 @@
 
         function updateShopifyInventory(shopifyData, takealotData) {
             const takealotNetQuantities = takealotData.reduce((acc, item) => {
+                item.SKU = sanitizeSKU(item.SKU);
                 let qtySending = sanitizeQuantity(item['Qty Sending']);
                 let qtyRequired = sanitizeQuantity(item['Qty Required']);
                 const netQty = qtySending - qtyRequired;
                 if (item.SKU) {
                     acc[item.SKU] = (acc[item.SKU] || 0) + netQty;
                 } else {
-                    errorData.push(item);
+                    errorData.push({ Error: 'Invalid SKU', Detail: `SKU is missing or invalid` });
                 }
                 return acc;
             }, {});
@@ -151,6 +152,13 @@
                 return 0;
             }
             return parsed;
+        }
+
+        function sanitizeSKU(sku) {
+            if (typeof sku === 'string') {
+                return sku.replace(/\"/g, '');
+            }
+            return sku;
         }
 
         function generateDownloadableFile(data, filename) {
