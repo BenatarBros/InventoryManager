@@ -1,181 +1,104 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Inventory Management Tool</title>
-    <style>
-        /* Add your CSS styling here */
-        .custom-file-upload {
-            border: 1px solid #ccc;
-            display: inline-block;
-            padding: 6px 12px;
-            cursor: pointer;
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Takealot to Destinations Transfer Tool</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.2/xlsx.full.min.js"></script>
 </head>
 <body>
-    <h1>Inventory Management Tool</h1>
-    <label for="shopifyFile" class="custom-file-upload">
-        Choose Shopify File
-    </label>
-    <input type="file" id="shopifyFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
-    
-    <label for="takealotFiles" class="custom-file-upload">
-        Choose Picking Lists
-    </label>
-    <input type="file" id="takealotFiles" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple class="hidden">
-    
-    <button id="processButton">Process Files</button>
-    <div id="output"></div>
+    <h1>Takealot to Destinations Transfer Tool</h1>
+    <label for="takealotCsv1">Takealot CSV 1:</label>
+    <input type="file" id="takealotCsv1" accept=".csv"><br>
+    <label for="takealotCsv2">Takealot CSV 2:</label>
+    <input type="file" id="takealotCsv2" accept=".csv"><br>
+    <label for="makroCsv">Makro CSV:</label>
+    <input type="file" id="makroCsv" accept=".csv"><br>
+    <label for="shopifyCsv">Shopify CSV:</label>
+    <input type="file" id="shopifyCsv" accept=".csv"><br>
+    <div>
+        <input type="radio" id="toMakro" name="exportMode" value="toMakro" checked>
+        <label for="toMakro">Takealot to Makro</label><br>
+        <input type="radio" id="toShopify" name="exportMode" value="toShopify">
+        <label for="toShopify">Takealot to Shopify</label><br>
+        <input type="radio" id="toBoth" name="exportMode" value="toBoth">
+        <label for="toBoth">Both</label><br>
+    </div>
+    <button onclick="processFiles()">Transfer and Download CSV(s)</button>
 
     <script>
-        document.getElementById('processButton').addEventListener('click', processFiles);
-        let errorData = []; // Array to store error rows
-        let missingSKUs = []; // Array to store SKUs missing in Shopify
+      let takealotData1 = [];
+      let takealotData2 = [];
+      let makroData = [];
+      let shopifyData = [];
 
-        function processFiles() {
-            errorData = []; // Reset error data
-    missingSKUs = []; // Reset missing SKUs
+      document.getElementById('takealotCsv1').addEventListener('change', function(e) {
+          parseCsv(e.target.files[0], data => { takealotData1 = data.data; });
+      });
 
-    const shopifyFileInput = document.getElementById('shopifyFile');
-    const takealotFileInputs = document.getElementById('takealotFiles');
+      document.getElementById('takealotCsv2').addEventListener('change', function(e) {
+          parseCsv(e.target.files[0], data => { takealotData2 = data.data; });
+      });
 
-            if (shopifyFileInput.files.length > 0) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const shopifyData = parseFile(e.target.result, shopifyFileInput.files[0].name);
-                    processTakealotFiles(shopifyData, takealotFileInputs.files);
-                };
-                reader.readAsBinaryString(shopifyFileInput.files[0]);
-            } else {
-                alert('Please upload the Shopify inventory file.');
-            }
-        }
+      document.getElementById('makroCsv').addEventListener('change', function(e) {
+          parseCsv(e.target.files[0], data => { makroData = data.data; });
+      });
 
-        function processTakealotFiles(shopifyData, takealotFiles) {
-            let takealotDataCombined = [];
-            let filesProcessed = 0;
+      document.getElementById('shopifyCsv').addEventListener('change', function(e) {
+          parseCsv(e.target.files[0], data => { shopifyData = data.data; });
+      });
 
-            Array.from(takealotFiles).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const parsedData = parseFile(e.target.result, file.name);
-                    takealotDataCombined = takealotDataCombined.concat(parsedData);
-                    filesProcessed++;
+      function parseCsv(file, callback) {
+          Papa.parse(file, {
+              complete: callback,
+              header: false,
+              skipEmptyLines: true
+          });
+      }
 
-                    if (filesProcessed === takealotFiles.length) {
-                        updateShopifyInventory(shopifyData, takealotDataCombined);
-                    }
-                };
-                reader.readAsBinaryString(file);
-            });
-        }
+      function processFiles() {
+          let combinedTakealotData = [...takealotData1, ...takealotData2];
+          
+          if (document.getElementById('toMakro').checked || document.getElementById('toBoth').checked) {
+              const updatedMakroData = updateDestinationData(combinedTakealotData, makroData, 5, 7, 0, 6);
+              const updatedCsvContentMakro = Papa.unparse(updatedMakroData);
+              downloadCsv(updatedCsvContentMakro, "updated_makro.csv");
+          }
 
-        function parseFile(data, filename) {
-            if (filename.endsWith('.csv')) {
-                return Papa.parse(data, { header: true }).data;
-            } else {
-                const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
-                return XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-            }
-        }
+          if (document.getElementById('toShopify').checked || document.getElementById('toBoth').checked) {
+              const updatedShopifyData = updateDestinationData(combinedTakealotData, shopifyData, 5, 7, 8, 11);
+              const updatedCsvContentShopify = Papa.unparse(updatedShopifyData);
+              downloadCsv(updatedCsvContentShopify, "updated_shopify.csv");
+          }
+      }
 
-        function updateShopifyInventory(shopifyData, takealotData) {
-            const takealotNetQuantities = takealotData.reduce((acc, item) => {
-                item.SKU = sanitizeSKU(item.SKU);
-                let qtySending = sanitizeQuantity(item['Qty Sending']);
-                let qtyRequired = sanitizeQuantity(item['Qty Required']);
-                const netQty = qtySending - qtyRequired;
-                if (item.SKU) {
-                    acc[item.SKU] = (acc[item.SKU] || 0) + netQty;
-                } else {
-                    errorData.push({ Error: 'Invalid SKU', Detail: `SKU is missing or invalid` });
-                }
-                return acc;
-            }, {});
+      function updateDestinationData(sourceData, destinationData, skuIndexSource, sohIndexSource, skuIndexDest, sohIndexDest) {
+          // Clone the destination data to avoid directly modifying the input array
+          let updatedData = JSON.parse(JSON.stringify(destinationData));
+          
+          // Skip header row by starting from 1
+          for (let i = 1; i < updatedData.length; i++) {
+              let destRow = updatedData[i];
+              const sku = destRow[skuIndexDest];
+              const matchingRow = sourceData.find(srcRow => srcRow[skuIndexSource] === sku);
+              if (matchingRow) {
+                  destRow[sohIndexDest] = matchingRow[sohIndexSource];
+              }
+          }
 
-            let shopifySKUs = new Set(shopifyData.map(item => item.SKU));
-            let updatedShopifyData = [];
+          return updatedData;
+      }
 
-            shopifyData.forEach(item => {
-                if (takealotNetQuantities.hasOwnProperty(item.SKU)) {
-                    let originalParkCrescentQty = parseQuantity(item['13 Park Crescent, Autoparks House']);
-                    let originalTakealotDCQty = parseQuantity(item['Takealot DC Warehouse']);
-                    let parkCrescentChanged = false;
-                    let takealotDCChanged = false;
-
-                    if (originalParkCrescentQty !== null) {
-                        let newParkCrescentQty = originalParkCrescentQty - takealotNetQuantities[item.SKU];
-                        item['13 Park Crescent, Autoparks House'] = newParkCrescentQty;
-                        parkCrescentChanged = true;
-                    }
-
-                    if (originalTakealotDCQty !== null) {
-                        let newTakealotDCQty = originalTakealotDCQty + takealotNetQuantities[item.SKU];
-                        item['Takealot DC Warehouse'] = newTakealotDCQty;
-                        takealotDCChanged = true;
-                    }
-
-                    if (parkCrescentChanged || takealotDCChanged) {
-                        updatedShopifyData.push(item);
-                    }
-                }
-            });
-
-            takealotData.forEach(item => {
-                if (item.SKU && !shopifySKUs.has(item.SKU)) {
-                    missingSKUs.push({ 'SKU': item.SKU, 'Qty Sending': item['Qty Sending'], 'Qty Required': item['Qty Required'] });
-                }
-            });
-
-            if (updatedShopifyData.length > 0) {
-                generateDownloadableFile(updatedShopifyData, 'updated_inventory.csv');
-            }
-            if (missingSKUs.length > 0) {
-                generateDownloadableFile(missingSKUs, 'missing_skus.csv');
-            }
-            if (errorData.length > 0) {
-                generateDownloadableFile(errorData, 'error_log.csv');
-            }
-        }
-
-        function parseQuantity(value) {
-            let parsed = parseInt(value);
-            return isNaN(parsed) ? null : parsed;
-        }
-
-        function sanitizeQuantity(value) {
-            let parsed = parseInt(value);
-            if (isNaN(parsed) || parsed < 0) {
-                return 0;
-            }
-            return parsed;
-        }
-
-        function sanitizeSKU(sku) {
-            if (typeof sku === 'string') {
-                return sku.replace(/\"/g, '');
-            }
-            return sku;
-        }
-
-        function generateDownloadableFile(data, filename) {
-            const csv = Papa.unparse(data, { skipEmptyLines: true });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const fileUrl = URL.createObjectURL(blob);
-
-            const downloadLink = document.createElement('a');
-            downloadLink.href = fileUrl;
-            downloadLink.setAttribute('download', filename);
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-        }
+      function downloadCsv(csvContent, fileName) {
+          const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      }
     </script>
 </body>
 </html>
